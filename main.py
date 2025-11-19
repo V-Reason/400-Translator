@@ -4,6 +4,7 @@ import threading
 import time
 import re
 import os
+import subprocess
 
 # 标记是否在运行
 running_tag = True
@@ -15,7 +16,7 @@ TIMESTAMP_PATTERN = re.compile(
 
 origin_folder = ".\\origin"
 translate_folder = ".\\translate"
-suffix = ".ch"
+suffix = "_ch"
 
 # 系统提示词
 systemPrompt_str = """
@@ -42,17 +43,21 @@ systemPrompt_str = """
    - 语序逻辑：中文表达必须符合口语习惯，禁止颠倒或冗余（例：「気持ちいい耳かき」→“舒服的掏耳朵”，而非“舒服的耳朵”）；
    - 省略号：「..」「...」统一译为「……」，仅作语气停顿，绝对禁止添加“嗯～”“呐～”等任何内容；
    - 人称指代：代词必须明确（角色A说“我的”→“XX的”，避免“我”导致混淆；“他/她”必须对应前文角色，禁止模糊指代）。
-5. 输出铁律（违反即无效）：
+5. 措辞规范与文风指导：
+   - 译文需极具画面感，主动调用生动传神的中文成语来描绘动作、神态与氛围
+   - 追求以简驭繁，凡有机会，必用精当成语替代冗长描述，使译文言简意赅、力道千钧
+6. 输出铁律（违反即无效）：
    - 内容保真：只返回与原文完全对应的译文，禁止添加任何原文没有的句子、注释、吐槽、冗余修饰（包括无中生有的补充说明）,绝对禁止添加任何汉化规则说明、注释、括号解释，仅保留与原文对应的纯译文；
    - 符号禁令：除必要换行（按原文分行）和语气词后的波浪线外，绝对禁止任何其他符号（包括单引号、双引号、逗号以外的多余标点）；
-   - 短句原则：译文必须是“扫一眼就懂的短句”，超过15字的长句强制拆分（拆分后保持逻辑连贯），禁止冗长复杂表达。
+   - 在精确传达原意的基础上，将主动、恰当地使用中文成语作为最高优先级策略，以全面提升译文的表现力与地道感
 """
 
 
 class Models:
+    hunyuan = "SimonPu/Hunyuan-MT-Chimera-7B:Q8"
     qwen2 = "qwen2:7b-instruct-q5_K_M"
     deepseek = "deepseek-r1:7b"
-    default_model = qwen2
+    default_model = hunyuan
 
 
 class API_URL:
@@ -80,27 +85,7 @@ class Message:
         return self.content
 
 
-class Options:
-    def __init__(self):
-        self.num_ctx = 8192  # 参数待定
-        self.temperature = 0.7  # 参数待定
-
-    def to_dict(self):
-        return self.__dict__
-
-
 class OllamaClient:
-    # gen不可用
-    def gen(self, payload: dict) -> str:
-        try:
-            response = requests.post(API_URL.generate, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            response = data.get("response", "错误：不存在response键值")
-            return response
-        except requests.exceptions.RequestException as e:
-            return f"错误：网络请求失败 - {e}"
-
     def chat(self, payload: dict) -> str:
         try:
             response = requests.post(API_URL.chat, json=payload)
@@ -118,9 +103,13 @@ class OllamaClient:
 
 class AI:
     def __init__(self, model: str = Models.default_model):
+        # 重启Ollama
+        if model == Models.hunyuan:
+            self.restartOllama(True)
+        else:
+            self.restartOllama(False)
         # 类成员属性
         self.model = model
-        self.options = Options()
         self.client = OllamaClient()
         self.messages = []
         # 添加系统提示词
@@ -142,7 +131,7 @@ class AI:
             payload = {
                 "model": self.model,
                 "messages": [m.to_dict() for m in self.messages],
-                "options": self.options.to_dict(),
+                "options": {{"num_ctx": 8192}, {"temperature": 0.7}},
                 "stream": False,
                 # "think": True, # qwen2不支持think参数
                 "keep_alive": "10m",
@@ -198,6 +187,49 @@ class AI:
             tra_file.write(processed_line)
             tra_file.write("\n")
         return True
+
+    def restartOllama(isLowVram: bool = False):
+        print(f"{Highlight.RED}{Highlight.BOLD}正在重启Ollama服务...{Highlight.RESET}")
+        try:
+            # 执行 taskkill 命令，忽略“未找到进程”的错误（2>nul）
+            subprocess.run(
+                ["taskkill", "\F", "\IM", "ollama.exe", "2>nul"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            # 等待服务完全停止（避免端口占用）
+            time.sleep(2)
+            # 启动 Ollama 服务
+            Command = "ollama serve"
+            if isLowVram:
+                Command += " --low-vram"
+                print(
+                    f"{Highlight.RED}{Highlight.BOLD}以--low-vram模式启动Ollama{Highlight.RESET}"
+                )
+            else:
+                print(
+                    f"{Highlight.RED}{Highlight.BOLD}以default模式启动Ollama{Highlight.RESET}"
+                )
+
+            subprocess.Popen(
+                ["cmd", "/c", Command],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            # 等待服务完全启动
+            time.sleep(5)
+            print(
+                f"{Highlight.RED}{Highlight.BOLD}启动Ollama服务成功！！！{Highlight.RESET}"
+            )
+
+        except Exception as e:
+            print(
+                f"{Highlight.RED}{Highlight.BOLD}停止Ollama服务失败...{Highlight.RESET}"
+            )
 
 
 def branch_thread_task():
