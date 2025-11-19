@@ -4,7 +4,6 @@ import threading
 import time
 import re
 import os
-import subprocess
 
 # 标记是否在运行
 running_tag = True
@@ -103,11 +102,6 @@ class OllamaClient:
 
 class AI:
     def __init__(self, model: str = Models.default_model):
-        # 重启Ollama
-        if model == Models.hunyuan:
-            self.restartOllama(True)
-        else:
-            self.restartOllama(False)
         # 类成员属性
         self.model = model
         self.client = OllamaClient()
@@ -131,7 +125,7 @@ class AI:
             payload = {
                 "model": self.model,
                 "messages": [m.to_dict() for m in self.messages],
-                "options": {{"num_ctx": 8192}, {"temperature": 0.7}},
+                "options": [{"num_ctx": 8192}, {"temperature": 0.7}],
                 "stream": False,
                 # "think": True, # qwen2不支持think参数
                 "keep_alive": "10m",
@@ -187,49 +181,6 @@ class AI:
             tra_file.write(processed_line)
             tra_file.write("\n")
         return True
-
-    def restartOllama(isLowVram: bool = False):
-        print(f"{Highlight.RED}{Highlight.BOLD}正在重启Ollama服务...{Highlight.RESET}")
-        try:
-            # 执行 taskkill 命令，忽略“未找到进程”的错误（2>nul）
-            subprocess.run(
-                ["taskkill", "\F", "\IM", "ollama.exe", "2>nul"],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            # 等待服务完全停止（避免端口占用）
-            time.sleep(2)
-            # 启动 Ollama 服务
-            Command = "ollama serve"
-            if isLowVram:
-                Command += " --low-vram"
-                print(
-                    f"{Highlight.RED}{Highlight.BOLD}以--low-vram模式启动Ollama{Highlight.RESET}"
-                )
-            else:
-                print(
-                    f"{Highlight.RED}{Highlight.BOLD}以default模式启动Ollama{Highlight.RESET}"
-                )
-
-            subprocess.Popen(
-                ["cmd", "/c", Command],
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            # 等待服务完全启动
-            time.sleep(5)
-            print(
-                f"{Highlight.RED}{Highlight.BOLD}启动Ollama服务成功！！！{Highlight.RESET}"
-            )
-
-        except Exception as e:
-            print(
-                f"{Highlight.RED}{Highlight.BOLD}停止Ollama服务失败...{Highlight.RESET}"
-            )
 
 
 def branch_thread_task():
@@ -302,7 +253,7 @@ if __name__ == "__main__":
     # 开始运行
     running_tag = True
     print(
-        f"{Highlight.GREEN}{Highlight.BOLD}{Highlight.UNDERLINE}\n运行开始！{Highlight.RESET}"
+        f"{Highlight.GREEN}{Highlight.BOLD}{Highlight.UNDERLINE}\n运行开始！\n{Highlight.RESET}"
     )
 
     # 分线程
