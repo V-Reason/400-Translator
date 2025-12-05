@@ -6,18 +6,6 @@ import re
 import os
 from pathlib import Path
 
-# 标记是否在运行
-running_tag = True
-
-# 预编译时间戳正则
-TIMESTAMP_PATTERN = re.compile(
-    r"^\s*\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}\s*$"
-)
-
-origin_folder = ".\\origin"
-translate_folder = ".\\translate"
-suffix = "_ch"
-
 # 系统提示词
 systemPrompt_str = """
 你是一名资深ACG汉化组成员，专精各类ACG日语对话翻译（包括漫画、动画、游戏、轻小说等），任务是翻译我发送的文字为中文，需逐字逐句严格遵循以下通用规则，且用户额外指定的要求（如核心称呼、特殊术语译法）具有最高优先级：
@@ -52,13 +40,26 @@ systemPrompt_str = """
    - 在精确传达原意的基础上，将主动、恰当地使用中文成语作为最高优先级策略，以全面提升译文的表现力与地道感
 """
 
+# 标记是否在运行
+running_tag = True
+
+# 预编译时间戳正则
+TIMESTAMP_PATTERN = re.compile(
+    r"^\s*\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}\s*$"
+)
+
+origin_folder = ".\\1_origin"
+translate_folder = ".\\2_translate"
+prefix = ""
+suffix = "_ch"
+
 
 class Models:
     deepseek = "deepseek-r1:7b"
     hunyuan = "Hunyuan-MT-7B-GGUF:Q6_K"
     qwen2 = "qwen2:7b-instruct-q5_K_M"
     qwen3 = "qwen3:8b-q6_K"
-    default_model = hunyuan
+    default_model = qwen3
 
 
 class API_URL:
@@ -268,7 +269,7 @@ def process_file(origin_file_path: str, translate_folder: str):
     name, ext = os.path.splitext(filename)
 
     # 创建新文件名
-    new_filename = f"{name}{suffix}{ext}"
+    new_filename = f"{prefix}{name}{suffix}{ext}"
 
     # 在目标文件夹中创建相同的相对路径
     translate_file_dir = os.path.join(translate_folder, os.path.dirname(relative_path))
