@@ -4,6 +4,7 @@ import threading
 import time
 import re
 import os
+from pathlib import Path
 
 # 标记是否在运行
 running_tag = True
@@ -194,6 +195,13 @@ class AI:
         return True
 
 
+def Test_solveOneFile(ori_file, tra_file) -> bool:
+    for line in ori_file:
+        tra_file.write(line)
+        tra_file.write("\n")
+    return True
+
+
 def branch_thread_task():
     secondCount = 0
     while running_tag:
@@ -228,19 +236,17 @@ class Highlight:
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
 
+    # 使用示例
+    """
+    print(f"{Highlight.RED}这是红色文本{Highlight.RESET}")
+    print(f"{Highlight.BG_YELLOW}{Highlight.BOLD}这是黄色背景的粗体文本{Highlight.RESET}")
+    print(f"{Highlight.GREEN}{Highlight.UNDERLINE}这是带下划线的绿色文本{Highlight.RESET}")
+    print(f"正常文本 -> {Highlight.BG_BLUE}{Highlight.WHITE}蓝色背景白色文本{Highlight.RESET} -> 回到正常")
+    """
 
-# 使用示例
-"""
-print(f"{Highlight.RED}这是红色文本{Highlight.RESET}")
-print(f"{Highlight.BG_YELLOW}{Highlight.BOLD}这是黄色背景的粗体文本{Highlight.RESET}")
-print(f"{Highlight.GREEN}{Highlight.UNDERLINE}这是带下划线的绿色文本{Highlight.RESET}")
-print(f"正常文本 -> {Highlight.BG_BLUE}{Highlight.WHITE}蓝色背景白色文本{Highlight.RESET} -> 回到正常")
-"""
 
-
-def creatFolder(folderName: str):
-    if not os.path.exists(folderName):
-        os.makedirs(folderName)
+def creatFolder(folderPath: str):
+    Path(folderPath).mkdir(parents=True, exist_ok=True)
 
 
 def initFolder():
@@ -248,16 +254,30 @@ def initFolder():
     creatFolder(translate_folder)
 
 
-def getFilePath(filename: str) -> list[2]:
-    # ori文件完整路径
-    origin_file_path = os.path.join(origin_folder, filename)
-    # 处理文件名：原文件名 + _ch 后缀（保留.srt扩展名）
+def getRelativePath(filepath: str, base_folder: str) -> str:
+    return os.path.relpath(filepath, base_folder)
+
+
+def process_file(origin_file_path: str, translate_folder: str):
+    """处理单个文件"""
+    # 获取相对于原文件夹的相对路径
+    relative_path = getRelativePath(origin_file_path, origin_folder)
+
+    # 获取原文件的文件名和扩展名
+    filename = os.path.basename(origin_file_path)
     name, ext = os.path.splitext(filename)
-    # 例如：video1.ch.srt
+
+    # 创建新文件名
     new_filename = f"{name}{suffix}{ext}"
-    # tra文件完整路径
-    translate_file_path = os.path.join(translate_folder, new_filename)
-    return [origin_file_path, translate_file_path]
+
+    # 在目标文件夹中创建相同的相对路径
+    translate_file_dir = os.path.join(translate_folder, os.path.dirname(relative_path))
+    creatFolder(translate_file_dir)  # 确保目标目录存在
+
+    # 构建目标文件完整路径
+    translate_file_path = os.path.join(translate_file_dir, new_filename)
+
+    return translate_file_path
 
 
 if __name__ == "__main__":
@@ -275,34 +295,70 @@ if __name__ == "__main__":
     # 文件夹初始化
     initFolder()
 
-    # 遍历origin文件夹
-    for filename in os.listdir(origin_folder):
-        # 获得完整路径
-        origin_file_path, translate_file_path = getFilePath(filename)
-        # 开始读写文件
-        with open(origin_file_path, "r", encoding="utf-8-sig") as ori_file, open(
-            translate_file_path, "w", encoding="utf-8"
-        ) as tra_file:
-            # 创建新AI
-            ai = AI()
-            # 开始处理
-            print(
-                f"{Highlight.YELLOW}{Highlight.BOLD}\n开始处理文件：{Highlight.RESET}{filename}"
-            )
-            if not ai.solveOneFile(ori_file, tra_file):
-                print(
-                    f"{Highlight.RED}{Highlight.BOLD}\n文件处理失败：{Highlight.RESET}{filename}"
-                )
-                continue  # 处理下一个文件
-            print(
-                f"{Highlight.GREEN}{Highlight.BOLD}\n文件处理完成：{Highlight.RESET}{filename}"
-            )
+    # 使用 os.walk 递归遍历原文件夹
+    for root, dirs, files in os.walk(origin_folder):
+        for filename in files:
+            # 原文件的完整路径
+            origin_file_path = os.path.join(root, filename)
+            # 生成目标文件路径
+            translate_file_path = process_file(origin_file_path, translate_folder)
+
+            # 开始读写文件
+            try:
+                with open(
+                    origin_file_path, "r", encoding="utf-8-sig"
+                ) as ori_file, open(
+                    translate_file_path, "w", encoding="utf-8"
+                ) as tra_file:
+
+                    # 创建新AI
+                    # ai = AI()
+                    # 开始处理
+                    print(
+                        f"{Highlight.YELLOW}{Highlight.BOLD}\n开始处理文件：{Highlight.RESET}{filename}"
+                    )
+                    if not Test_solveOneFile(ori_file, tra_file):
+                        print(
+                            f"{Highlight.RED}{Highlight.BOLD}\n文件处理失败：{Highlight.RESET}{filename}"
+                        )
+                        continue  # 处理下一个文件
+                    print(
+                        f"{Highlight.GREEN}{Highlight.BOLD}\n文件处理完成：{Highlight.RESET}{filename}"
+                    )
+            except Exception as e:
+                print(f"处理文件 {filename} 时出错: {str(e)}")
+                continue
+
     # 运行结束，全部文件处理完毕
     running_tag = False
     print(
         f"{Highlight.GREEN}{Highlight.BOLD}{Highlight.UNDERLINE}\n运行结束！\n全部文件处理完毕！{Highlight.RESET}"
     )
 
+
+# 弃用
+"""
+# 遍历origin文件夹
+for filename in os.listdir(origin_folder):
+    # 获得完整路径
+    origin_file_path, translate_file_path = getFilePath(filename)
+    # 开始读写文件
+    with open(origin_file_path, "r", encoding="utf-8-sig") as ori_file, open(
+        translate_file_path, "w", encoding="utf-8"
+    ) as tra_file:
+"""
+"""
+def getFilePath(filename: str) -> list[2]:
+    # ori文件完整路径
+    origin_file_path = os.path.join(origin_folder, filename)
+    # 处理文件名：原文件名 + _ch 后缀（保留.srt扩展名）
+    name, ext = os.path.splitext(filename)
+    # 例如：video1.ch.srt
+    new_filename = f"{name}{suffix}{ext}"
+    # tra文件完整路径
+    translate_file_path = os.path.join(translate_folder, new_filename)
+    return [origin_file_path, translate_file_path]
+"""
 
 # 废案
 """
