@@ -4,6 +4,8 @@ import threading
 import time
 import re
 import os
+import sys
+import datetime
 from pathlib import Path
 
 # 系统提示词
@@ -47,6 +49,8 @@ TIMESTAMP_PATTERN = re.compile(
 
 origin_folder = ".\\1_origin"
 translate_folder = ".\\2_translate"
+log_folder = ".\\5_logs"
+log_file = f"{datetime.datetime.now().strftime("%Y-%m-%d")}.log"
 prefix = ""
 suffix = "_ch"
 
@@ -213,6 +217,24 @@ def branch_thread_task():
     )
 
 
+class Logger(object):
+    def __init__(self, filename="Default.log", path="./"):
+        # 保存原始的stdout，以便继续输出到终端
+        self.terminal = sys.stdout
+        # 以追加模式('a')打开日志文件，确保编码正确
+        self.log = open(os.path.join(path, filename), "a", encoding="utf8")
+
+    def write(self, message):
+        # 将消息同时写入终端和文件
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        # 为了保证实时写入，每次write后都清空缓冲区
+        self.log.flush()
+        self.terminal.flush()
+
+
 # 定义 ANSI 转义序列常量
 class Highlight:
     # 重置所有样式
@@ -250,6 +272,7 @@ def creatFolder(folderPath: str):
 def initFolder():
     creatFolder(origin_folder)
     creatFolder(translate_folder)
+    creatFolder(log_folder)
 
 
 def getRelativePath(filepath: str, base_folder: str) -> str:
@@ -281,6 +304,10 @@ def process_file(origin_file_path: str, translate_folder: str):
 if __name__ == "__main__":
     # 开始运行
     running_tag = True
+    # 文件夹初始化
+    initFolder()
+    # 重定向输出到Log和终端
+    sys.stdout = Logger(log_file, log_folder)
     print(
         f"{Highlight.GREEN}{Highlight.BOLD}{Highlight.UNDERLINE}\n运行开始！\n{Highlight.RESET}"
     )
@@ -290,9 +317,6 @@ if __name__ == "__main__":
     branch_thread.start()
 
     # 主逻辑
-    # 文件夹初始化
-    initFolder()
-
     # 使用 os.walk 递归遍历原文件夹
     for root, dirs, files in os.walk(origin_folder):
         for filename in files:
