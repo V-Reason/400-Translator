@@ -118,6 +118,7 @@ class AI:
         self.messages.append(mess)
 
     def trim_history(self):
+        # 最大存储对话记录条数
         maxMess = 100
         if len(self.messages) > maxMess + 1:
             system_msg = self.messages[0]
@@ -221,7 +222,7 @@ class Logger(object):
     def __init__(self, filename="Default.log", path="./"):
         # 保存原始的stdout，以便继续输出到终端
         self.terminal = sys.stdout
-        # 以追加模式('a')打开日志文件，确保编码正确
+        # 以追加模式('a')打开日志文件，utf-8-nobom编码
         self.log = open(os.path.join(path, filename), "a", encoding="utf8")
 
     def write(self, message):
@@ -328,7 +329,7 @@ if __name__ == "__main__":
             # 开始读写文件
             try:
                 with open(
-                    origin_file_path, "r", encoding="utf-8-sig"
+                    origin_file_path, "r", encoding="utf-8-sig"  # 兼容NOBOM/BOM
                 ) as ori_file, open(
                     translate_file_path, "w", encoding="utf-8"
                 ) as tra_file:
